@@ -142,7 +142,9 @@ export default function Chat() {
     const msg = inputRef.current.value;
     console.log(`Sending: `, msg, peers);
     const connectedPeers = peers.filter((x) => x.open);
-    connectedPeers.forEach((c) => c.send(msg));
+    connectedPeers.forEach((c) =>
+      c.send({ type: "msg", payload: msg } as IData)
+    );
     setMsgs((prev) => [...prev, { sender: peer.id, msg }]);
     inputRef.current.value = "";
   }
