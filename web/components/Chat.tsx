@@ -1,3 +1,5 @@
+import getCfg from "next/config";
+import { useRouter } from "next/router";
 import Peer, { DataConnection } from "peerjs";
 import {
   createRef,
@@ -7,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import getCfg from "next/config";
 
 interface IData {
   type: "msg" | "ping" | "pong";
@@ -17,6 +18,7 @@ interface IData {
 const { publicRuntimeConfig } = getCfg();
 
 export default function Chat() {
+  const router = useRouter();
   const [peerId, setPeerId] = useState<string>();
   const inputRef = createRef<HTMLInputElement>();
   const [msgs, setMsgs] = useState<{ sender: string; msg: string }[]>([]);
@@ -90,49 +92,66 @@ export default function Chat() {
     return () => clearInterval(interval);
   }, [peers]);
 
-  async function connect(connectId: string) {
-    if (!peer) {
+  const connect = useCallback(
+    async (connectId: string) => {
+      if (!peer) {
+        return;
+      }
+
+      console.log("Connecting to peer: ", connectId);
+      const conn = peer.connect(connectId);
+      setPeers((prev) => [...prev.filter((x) => x.open), conn]);
+
+      conn.on("data", (data: IData) => {
+        switch (data.type) {
+          case "msg":
+            setMsgs((prev) => [
+              ...prev,
+              { sender: conn.peer, msg: data.payload },
+            ]);
+            break;
+          case "ping":
+            conn.send({ type: "pong", payload: data.payload });
+            break;
+          case "pong":
+            setPings((prev) => ({
+              ...prev,
+              [conn.peer]: new Date().getTime() - data.payload,
+            }));
+        }
+      });
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      const self = selfVideoRef.current;
+      if (self) {
+        self.srcObject = stream;
+        self.play();
+      }
+
+      const call = peer.call(connectId, stream);
+      call.on("stream", (remoteStream) => {
+        setStreams((prev) => ({ ...prev, [call.peer]: remoteStream }));
+      });
+    },
+    [peer]
+  );
+
+  useEffect(() => {
+    const peerIds = router.query.connect;
+    if (!peerId || !peerIds) {
       return;
     }
 
-    const conn = peer.connect(connectId);
-    setPeers((prev) => [...prev.filter((x) => x.open), conn]);
-
-    conn.on("data", (data: IData) => {
-      switch (data.type) {
-        case "msg":
-          setMsgs((prev) => [
-            ...prev,
-            { sender: conn.peer, msg: data.payload },
-          ]);
-          break;
-        case "ping":
-          conn.send({ type: "pong", payload: data.payload });
-          break;
-        case "pong":
-          setPings((prev) => ({
-            ...prev,
-            [conn.peer]: new Date().getTime() - data.payload,
-          }));
-      }
-    });
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
-
-    const self = selfVideoRef.current;
-    if (self) {
-      self.srcObject = stream;
-      self.play();
+    if (Array.isArray(peerIds)) {
+      peerIds.forEach((x) => connect(x));
+    } else {
+      connect(peerIds);
     }
-
-    const call = peer.call(connectId, stream);
-    call.on("stream", (remoteStream) => {
-      setStreams((prev) => ({ ...prev, [call.peer]: remoteStream }));
-    });
-  }
+  }, [connect, peerId, router.query.connect]);
 
   function sendMsg() {
     if (!inputRef.current) {
@@ -149,9 +168,18 @@ export default function Chat() {
     inputRef.current.value = "";
   }
 
+  const linkUrl = new URL(location.href);
+  linkUrl.search = `connect=${peerId}`;
+  const link = linkUrl.toString();
+
   return (
     <div>
       <h1>Address: {peerId}</h1>
+      <div>
+        <a href={link} target="_blank" rel="noreferrer">
+          {link}
+        </a>
+      </div>
       <video ref={selfVideoRef} width="150" />
       <h2>Connected:</h2>
       <ul>
