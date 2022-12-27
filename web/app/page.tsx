@@ -1,7 +1,12 @@
+import { Video } from "components/Video";
+
 export default function Home() {
   return (
-    <h1 className="text-3xl font-bold underline">
-      Hello world!
-    </h1>
-  )
+    <div className="grid grid-cols-2">
+      <div>
+        <Video />
+      </div>
+      <div></div>
+    </div>
+  );
 }
