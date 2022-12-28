@@ -1,26 +1,26 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { startMediaStream, initializeSelfieSegmentation } from "webrtc";
+import { getVirtualBackgroundStream } from "webrtc";
 
 export default function Video() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const controlRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // startMediaStream().then((stream) => {
-    //   videoRef.current!.srcObject = stream;
-    // });
-    console.log("mount");
-    initializeSelfieSegmentation(controlRef.current!, canvasRef.current!);
+    getVirtualBackgroundStream({
+      video: { aspectRatio: 16 / 9, height: 360 },
+    }).then((stream) => {
+      if (!videoRef.current) {
+        console.warn("Mounted with no video element ref");
+        return;
+      }
+      videoRef.current.srcObject = stream;
+    });
   }, []);
 
   return (
     <div>
-      {/* <video autoPlay ref={videoRef} /> */}
-      <canvas ref={canvasRef} width={1280} height={720} />
-      <div ref={controlRef} />
+      <video autoPlay ref={videoRef} />
     </div>
   );
 }
